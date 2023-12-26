@@ -14,14 +14,14 @@ using Newtonsoft.Json;
 namespace MochiApi.Controllers
 {
     [ApiController]
-    [Route("api/wallets")]
+    [Route("api/wallets/statistic")]
     [Protect]
-    public class WalletController : Controller
+    public class StatisticWalletController : Controller
     {
         public IWalletService _walletService { get; set; }
         public IMapper _mapper { get; set; }
 
-        public WalletController(IWalletService walletSer, IMapper mapper)
+        public StatisticWalletController(IWalletService walletSer, IMapper mapper)
         {
             _walletService = walletSer;
             _mapper = mapper;

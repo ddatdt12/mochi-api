@@ -49,5 +49,27 @@ namespace MochiApi.Common
             Reminder,
             JoinWalletInvitation
         }
+
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public enum InvitationStatus
+        {
+            New,
+            Accepted,
+            Declined
+        }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public enum InvitationAction
+        {
+            Accept,
+            Decline
+        }
+
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public enum MemberStatus
+        {
+            Accepted,
+            Declined,
+            Pending
+        }
     }
 }
