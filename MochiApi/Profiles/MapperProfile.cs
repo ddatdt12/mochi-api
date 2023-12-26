@@ -14,7 +14,7 @@ public class MapperProfile : Profile
         CreateMap<LoginUserDto, User>();
 
         CreateMap<CreateCategoryDto, Category>();
-        CreateMap<UpdateCategoryDto, Category>();
+        CreateMap<UpdateCategoryDto, Category>().ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null)); ;
         CreateMap<Category, CategoryDto>();
 
         CreateMap<Wallet, WalletDto>();
@@ -28,5 +28,8 @@ public class MapperProfile : Profile
         CreateMap<Budget, BudgetDto>();
         CreateMap<CreateBudgetDto, Budget>();
         CreateMap<UpdateBudgetDto, Budget>();
+
+        CreateMap<CreateNotificationDto, Notification>();
+        CreateMap<Notification, NotificationDto>();
     }
 }

@@ -1,7 +1,10 @@
 ﻿using AutoMapper;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using MochiApi.Dtos;
 using MochiApi.Error;
+using MochiApi.Helper;
+using MochiApi.Hubs;
 using MochiApi.Models;
 using System.Linq.Expressions;
 
@@ -11,13 +14,18 @@ namespace MochiApi.Services
     {
         private readonly IConfiguration _configuration;
         private readonly IMapper _mapper;
+        IHubContext<NotiHub> _notiHub;
+        INotiService _notiService;
+
         public DataContext _context { get; set; }
 
-        public BudgetService(IConfiguration configuration, DataContext context, IMapper mapper)
+        public BudgetService(IConfiguration configuration, DataContext context, IMapper mapper, IHubContext<NotiHub> notiHub, INotiService notiService)
         {
             _configuration = configuration;
             _context = context;
             _mapper = mapper;
+            _notiHub = notiHub;
+            _notiService = notiService;
         }
 
         public async Task<IEnumerable<Budget>> GetBudgets(int walletId, int month, int year)
@@ -28,7 +36,7 @@ namespace MochiApi.Services
 
             return budgets;
         }
-        public async Task<BudgetSummary> StatisticBudget(int walletId, int month, int year)
+        public async Task<BudgetSummary> SummaryBudget(int walletId, int month, int year)
         {
             var budgetsQuery = _context.Budgets.AsNoTracking().Where(b => b.WalletId == walletId && b.Month == month && b.Year == year);
 
@@ -115,7 +123,33 @@ namespace MochiApi.Services
 
             if (budget != null)
             {
+                long beforeSpendAmout = budget.SpentAmount;
                 budget.SpentAmount += amount;
+
+                if (beforeSpendAmout <= budget.LimitAmount && budget.SpentAmount > budget.LimitAmount)
+                {
+                    var memberIds = await _context.WalletMembers.Where(wM => wM.WalletId == budget.WalletId).Select(wM => wM.UserId).ToArrayAsync();
+
+                    await _context.Entry(budget).Reference(b => b.Category).LoadAsync();
+
+                    var notisDto = memberIds.Select(id => new CreateNotificationDto
+                    {
+                        UserId = id,
+                        BudgetId = budget.Id,
+                        WalletId = budget.WalletId,
+                        Type = Common.Enum.NotificationType.BudgetExceed,
+                        Description = NotiTemplate.GetRemindBudgetExceedLimit(budget.Category?.Name ?? "", month, year),
+                    });
+
+                    var notis = await _notiService.CreateListNoti(notisDto, false);
+
+                    var notisDtos = _mapper.Map<IEnumerable<NotificationDto>>(notis);
+                    foreach (var noti in notisDtos)
+                    {
+                        _ = _notiHub.Clients.User(noti.UserId.ToString()).SendAsync("Notification", noti);
+                    }
+                }
+
                 if (saveChanges)
                 {
                     await _context.SaveChangesAsync();
@@ -131,6 +165,87 @@ namespace MochiApi.Services
             }
             _context.Budgets.Remove(budget);
             await _context.SaveChangesAsync();
+        }
+
+        public async Task<BudgetDetailSummary> SummaryBudgetDetail(int id, int walletId, int month, int year)
+        {
+            var budget = await _context.Budgets.Where(b => b.Id == id && b.WalletId == walletId && b.Month == month && b.Year == year)
+             .FirstOrDefaultAsync();
+
+            if (budget == null)
+            {
+                throw new ApiException("Invalid budget", 400);
+            }
+
+            DateTime now = DateTime.Now;
+            DateTime date = new DateTime(year, month, 1);
+            if (now.Year != year || now.Month != month)
+            {
+                var RealDailyExpense = budget.SpentAmount / DateTime.DaysInMonth(year, month);
+                return new BudgetDetailSummary
+                {
+                    TotalBudget = budget.LimitAmount,
+                    TotalSpentAmount = budget.SpentAmount,
+                    ExpectedExpense = 0,
+                    RealDailyExpense = RealDailyExpense
+                };
+            }
+
+
+            int remainDaysOfMonth = DateTime.DaysInMonth(year, month) - DateTime.UtcNow.Day;
+            double realDailyExpense = budget.SpentAmount * 1.0 / DateTime.UtcNow.Day;
+            var summary = new BudgetDetailSummary
+            {
+                ExpectedExpense = realDailyExpense * remainDaysOfMonth + budget.SpentAmount,
+                RealDailyExpense = realDailyExpense,
+                TotalBudget = budget.LimitAmount,
+                TotalSpentAmount = budget.SpentAmount,
+                RecommendedDailyExpense = remainDaysOfMonth == 0 ? 0 : budget.RemainingAmount / remainDaysOfMonth,
+            };
+
+            return summary;
+        }
+
+        async Task<Budget?> IBudgetService.GetBudget(int id, int walletId, int month, int year)
+        {
+            var budget = await _context.Budgets.AsNoTracking().Where(b => b.Id == id && b.WalletId == walletId && b.Month == month && b.Year == year)
+                 .FirstOrDefaultAsync();
+
+            return budget;
+        }
+
+        async Task<IEnumerable<BudgetDetailStatistic>> IBudgetService.StatisticBudget(int id, int walletId, int month, int year)
+        {
+            var budget = await _context.Budgets.Where(b => b.Id == id && b.WalletId == walletId && b.Month == month && b.Year == year)
+             .FirstOrDefaultAsync();
+
+            if (budget == null)
+            {
+                throw new ApiException("Invalid budget", 400);
+            }
+
+            int day = DateTime.DaysInMonth(year, month);
+
+            //if (year == DateTime.Now.Year && month == DateTime.Now.Month)
+            //{
+            //    day = DateTime.Now.Day;
+            //}
+
+            List<long> amountEachDay = new List<long>(new long[day]);
+
+            DateTime startDate = new DateTime(year, month, 1).ToUniversalTime();
+            DateTime endDate = startDate.AddMonths(1).AddSeconds(-1).ToUniversalTime();
+            var statistic = await _context.Transactions.Where(t => t.CategoryId == budget.CategoryId && t.CreatedAt >= startDate && t.CreatedAt <= endDate)
+            .GroupBy(t => t.CreatedAt.Date)
+            .Select(gr => new { Date = gr.Key, ExpenseAmount = gr.Sum(t => t.Amount) }).ToListAsync();
+
+            foreach (var item in statistic)
+            {
+                amountEachDay[item.Date.Day - 1] += item.ExpenseAmount;
+            }
+
+
+            return amountEachDay.Select((v, i) => new BudgetDetailStatistic { Date = new DateTime(year, month, i + 1), ExpenseAmount = v }).ToList();
         }
     }
 }

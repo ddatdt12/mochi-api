@@ -1,15 +1,30 @@
 using Microsoft.EntityFrameworkCore;
 using MochiApi.Dtos.Settings;
 using MochiApi.Extensions;
+using MochiApi.Hubs;
 using MochiApi.Middlewares;
 using MochiApi.Models;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.WebHost.ConfigureKestrel(c =>
+{
+    c.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(5);
+});
 builder.Services.ConfigureCors();
 
 // Add services to the container.
 builder.Services.AddControllers().AddCustomOptions();
+
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = true;
+    options.HandshakeTimeout = TimeSpan.FromSeconds(30);
+}).AddJsonProtocol(x => {
+    x.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    x.PayloadSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+});
+
 
 builder.Services.AddSignalR();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -55,6 +70,7 @@ app.UseMiddleware<JwtMiddleware>();
 app.UseEndpoints(endpoints =>
 {
     endpoints.MapControllers();
+    endpoints.MapHub<NotiHub>("/hubs/noti");
 });
 
 app.Run();
