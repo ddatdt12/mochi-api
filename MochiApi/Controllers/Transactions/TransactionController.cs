@@ -4,6 +4,7 @@ using MochiApi.Attributes;
 using MochiApi.Dtos;
 using MochiApi.DTOs;
 using MochiApi.Error;
+using MochiApi.Helper;
 using MochiApi.Models;
 using MochiApi.Services;
 
@@ -29,12 +30,12 @@ namespace MochiApi.Controllers
         [HttpGet]
         public async Task<IActionResult> GetTransactions(int walletId, [FromQuery] TransactionFilterDto filter)
         {
-            var userId = HttpContext.Items["UserId"] as int?;
+            int userId = HttpContext.Items["UserId"] as int? ?? 0;
             if (!await _walletService.VerifyIsUserInWallet(walletId, (int)userId!))
             {
                 throw new ApiException("Access denied!", 400);
             }
-            var transList = await _transactionService.GetTransactions(walletId, filter);
+            var transList = await _transactionService.GetTransactions(userId, walletId, filter);
             var transRes = _mapper.Map<IEnumerable<TransactionDto>>(transList);
             var groupByDates = transRes.GroupBy(tr => tr.CreatedAt.Date);
             List<TransactionGroupDateDto> response = new List<TransactionGroupDateDto>();
@@ -46,11 +47,13 @@ namespace MochiApi.Controllers
 
                 foreach (var transaction in group)
                 {
-                    if (transaction.Category!.Type == Common.Enum.CategoryType.Income)
+                    if (Utils.PlusCategoryTypes.Contains(transaction.Category!.Type))
                     {
                         totalIncome += transaction.Amount;
                         revenue += transaction.Amount;
-                    }else{
+                    }
+                    else
+                    {
                         totalExpense += transaction.Amount;
                         revenue -= transaction.Amount;
                     }
@@ -61,11 +64,86 @@ namespace MochiApi.Controllers
                 response.Add(item);
             }
 
-            return Ok(new ApiResponse<object>(new {
+            return Ok(new ApiResponse<object>(new
+            {
                 totalIncome,
                 totalExpense,
                 details = response
             }, "Get transaction statistic group by date successfully!"));
+        }
+
+        [HttpGet("recently")]
+        [Produces(typeof(IEnumerable<TransactionDto>))]
+        public async Task<IActionResult> GetRecentlyTransactions(int walletId, [FromQuery] TransactionFilterDto filter)
+        {
+            int userId = HttpContext.Items["UserId"] as int? ?? 0;
+            if (!await _walletService.VerifyIsUserInWallet(walletId, (int)userId!))
+            {
+                throw new ApiException("Access denied!", 400);
+            }
+
+            filter.Skip = 0;
+            filter.Take = 5;
+            var transList = await _transactionService.GetTransactions(userId, walletId, filter);
+            var transRes = _mapper.Map<IEnumerable<TransactionDto>>(transList);
+            return Ok(new ApiResponse<object>(transRes, "Get recently transactions successfully!"));
+        }
+
+        [HttpGet("{id}")]
+        [Produces(typeof(TransactionDto))]
+        public async Task<IActionResult> GetTransactionById(int id, int walletId)
+        {
+            int userId = HttpContext.Items["UserId"] as int? ?? 0;
+            if (!await _walletService.VerifyIsUserInWallet(walletId, (int)userId!))
+            {
+                throw new ApiException("Access denied!", 400);
+            }
+
+            var trans = await _transactionService.GetTransactionById(id);
+            var transRes = _mapper.Map<TransactionDto>(trans);
+            return Ok(new ApiResponse<object>(transRes, "Get recently transactions successfully!"));
+        }
+
+
+        [HttpGet("{id}/child-transactions")]
+        public async Task<IActionResult> GetChildTransactions(int id, int walletId)
+        {
+            int userId = HttpContext.Items["UserId"] as int? ?? 0;
+            if (!await _walletService.VerifyIsUserInWallet(walletId, (int)userId!))
+            {
+                throw new ApiException("Access denied!", 400);
+            }
+            var transList = await _transactionService.GetChildTransactionsOfParentTrans(id);
+            var transRes = _mapper.Map<IEnumerable<TransactionDto>>(transList);
+
+            var groupByDates = transRes.GroupBy(tr => tr.CreatedAt.Date);
+            List<TransactionGroupDateDto> response = new List<TransactionGroupDateDto>();
+            long totalIncome = 0, totalExpense = 0;
+            foreach (var group in groupByDates)
+            {
+                TransactionGroupDateDto item = new TransactionGroupDateDto { Date = group.Key };
+                long revenue = 0;
+
+                foreach (var transaction in group)
+                {
+                    if (Utils.PlusCategoryTypes.Contains(transaction.Category!.Type))
+                    {
+                        totalIncome += transaction.Amount;
+                        revenue += transaction.Amount;
+                    }
+                    else
+                    {
+                        totalExpense += transaction.Amount;
+                        revenue -= transaction.Amount;
+                    }
+                    item.Transactions.Add(transaction);
+                }
+
+                item.Revenue = revenue;
+                response.Add(item);
+            }
+
+            return Ok(new ApiResponse<object>(response, "Get child transaction group by date successfully!"));
         }
 
         [HttpPost]
