@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MochiApi.Models
 {
@@ -9,6 +10,10 @@ namespace MochiApi.Models
         public Transaction()
         {
             Note = String.Empty;
+            ParticipantIds = String.Empty;
+            Participants = new List<User>();
+            CreatedAt = DateTime.UtcNow;
+            CreatedAt = DateTime.UtcNow;
         }
         public int Id { get; set; }
         public int Amount { get; set; }
@@ -23,13 +28,34 @@ namespace MochiApi.Models
         public Event? Event { get; set; }
         [Required]
         public DateTime CreatedAt { get; set; }
-        public string? Image{ get; set; }
+        public string? Image { get; set; }
+        public int? RelevantTransactionId { get; set; }
+        public int AccumulatedAmount { get; set; }
+        public Transaction? RelevantTransaction { get; set; }
+        public string UnknownParticipantsStr { get; set; }
+        [NotMapped]
+        public List<string> UnknownParticipants
+        {
+            get
+            {
+                return UnknownParticipantsStr.Split(";", StringSplitOptions.RemoveEmptyEntries).ToList();
+            }
+            set
+            {
+                UnknownParticipantsStr = string.Join(";", value);
+            }
+        }
+        public string ParticipantIds { get; set; }
+        [NotMapped]
+        public List<User> Participants { get; set; }
+        [NotMapped]
+        public List<Transaction> ChildTransactions { get; set; }
     }
     public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
     {
         public void Configure(EntityTypeBuilder<Transaction> builder)
         {
-            builder.Property(u => u.CreatedAt).HasDefaultValueSql("UTC_TIMESTAMP()");
+            builder.HasIndex(t => t.UnknownParticipantsStr);
         }
     }
 }
