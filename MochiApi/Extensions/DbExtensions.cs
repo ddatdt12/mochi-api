@@ -34,28 +34,32 @@ namespace MochiApi.Extensions
                         Role = Common.Enum.MemberRole.Admin,
                         JoinAt  = date,
                         UserId = 1,
-                        WalletId = 1
+                        WalletId = 1,
+                        Status = MemberStatus.Accepted
                     },
                     new WalletMember
                     {
                         Role = Common.Enum.MemberRole.Admin,
                         JoinAt  = date,
                         UserId = 2,
-                        WalletId = 2
+                        WalletId = 2,
+                        Status = MemberStatus.Accepted
                     },
                     new WalletMember
                     {
                         Role = Common.Enum.MemberRole.Admin,
                         JoinAt  = date,
                         UserId = 3,
-                        WalletId = 3
+                        WalletId = 3,
+                        Status = MemberStatus.Accepted
                     },
                     new WalletMember
                     {
                         Role = Common.Enum.MemberRole.Admin,
                         JoinAt  = date,
                         UserId = 4,
-                        WalletId = 4
+                        WalletId = 4,
+                        Status = MemberStatus.Accepted
                     },
                 }
                 );
@@ -71,49 +75,49 @@ namespace MochiApi.Extensions
                 new Category {
                     Id = 2,
                     Name = "Di chuyển",
-                    Icon = "1",
+                    Icon = "2",
                     Group = CategoryGroup.RequiredExpense,
                     Type = Common.Enum.CategoryType.Expense,
                 },
                 new Category {
                     Id = 3,
                     Name = "Thuê nhà",
-                    Icon = "1",
+                    Icon = "3",
                     Group = CategoryGroup.RequiredExpense,
                     Type = Common.Enum.CategoryType.Expense,
                 },
                 new Category {
                     Id = 4,
                     Name = "Hóa đơn điện thoại",
-                    Icon = "1",
+                    Icon = "4",
                     Group = CategoryGroup.RequiredExpense,
                      Type = Common.Enum.CategoryType.Expense,
                 },
                 new Category {
                     Id = 5,
                     Name = "Hóa đơn internet",
-                    Icon = "1",
+                    Icon = "5",
                     Group = CategoryGroup.RequiredExpense,
                      Type = Common.Enum.CategoryType.Expense,
                 },
                 new Category {
                     Id = 6,
                     Name = "Hóa đơn tiện ích khác",
-                    Icon = "1",
+                    Icon = "6",
                     Group = CategoryGroup.RequiredExpense,
                      Type = Common.Enum.CategoryType.Expense,
                 },
                 new Category {
                     Id = 7,
                     Name = "Sửa & trang trí khác",
-                    Icon = "1",
+                    Icon = "7",
                     Group = CategoryGroup.NecessaryExpense,
                      Type = Common.Enum.CategoryType.Expense,
                 },
                 new Category {
                     Id = 8,
                     Name = "Bảo dưỡng xe",
-                    Icon = "1",
+                    Icon = "8",
                     Group = CategoryGroup.RequiredExpense,
                      Type = Common.Enum.CategoryType.Expense,
                 },
@@ -161,22 +165,57 @@ namespace MochiApi.Extensions
                 },
                 new Category {
                     Id = 15,
-                    Name = "Nợ",
+                    Name = "Đi vay",
                     Icon = "1",
                     Group = CategoryGroup.InvestingOrDebt,
-                     Type = Common.Enum.CategoryType.Expense,
+                     Type = Common.Enum.CategoryType.Debt,
                 },
                 new Category {
                     Id = 16,
                     Name = "Cho vay",
                     Icon = "1",
                     Group = CategoryGroup.InvestingOrDebt,
+                     Type = Common.Enum.CategoryType.Loan,
+                },
+                new Category {
+                    Id = 17,
+                    Name = "Trả Nợ",
+                    Icon = "1",
+                    Group = CategoryGroup.InvestingOrDebt,
+                     Type = Common.Enum.CategoryType.Repayment,
+                },
+                new Category {
+                    Id = 18,
+                    Name = "Thu Nợ",
+                    Icon = "1",
+                    Group = CategoryGroup.InvestingOrDebt,
+                     Type = Common.Enum.CategoryType.DebtCollection,
+                },
+                new Category {
+                    Id = 19,
+                    Name = "Làm đẹp",
+                    Icon = "3",
+                    Group = CategoryGroup.Entertainment,
+                     Type = Common.Enum.CategoryType.Expense,
+                },
+                new Category {
+                    Id = 20,
+                    Name = "Quà tặng và quyên góp",
+                    Icon = "4",
+                    Group = CategoryGroup.Entertainment,
+                     Type = Common.Enum.CategoryType.Expense,
+                },
+                new Category {
+                    Id = 21,
+                    Name = "Dịch vụ trực tuyến",
+                    Icon = "4",
+                    Group = CategoryGroup.Entertainment,
                      Type = Common.Enum.CategoryType.Expense,
                 },
             };
 
             var listCategory = new List<Category>();
-            var index = 17;
+            var index = 22;
 
             foreach (var w in wallets)
             {
@@ -193,29 +232,10 @@ namespace MochiApi.Extensions
                     }); ;
                 }
             }
-            
+
 
             modelBuilder.Entity<Category>().HasData(baseListCateogry);
             modelBuilder.Entity<Category>().HasData(listCategory);
-
-
-            //listCateogry.ForEach(c => {
-            //        c.Id = index++;
-            //        c.WalletId = 2;
-            //    listWalletCategory.Add(c);
-            //});
-            //listCateogry.ForEach(c => {
-            //        c.Id = index++;
-            //        c.WalletId = 3;
-            //    listWalletCategory.Add(c);
-            //});
-            //listCateogry.ForEach(c => {
-            //        c.Id = index++;
-            //        c.WalletId = 4;
-            //    listWalletCategory.Add(c);
-            //});
-
-            //modelBuilder.Entity<Category>().HasData(listWalletCategory);
         }
     }
 }

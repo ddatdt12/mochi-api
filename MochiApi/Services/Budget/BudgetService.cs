@@ -30,11 +30,23 @@ namespace MochiApi.Services
 
         public async Task<IEnumerable<Budget>> GetBudgets(int walletId, int month, int year)
         {
-            var budgets = await _context.Budgets.AsNoTracking().Where(b => b.WalletId == walletId && b.Month == month && b.Year == year)
+            var budgets = await _context
+            .Budgets.AsNoTracking().Where(b => b.WalletId == walletId && b.Month == month && b.Year == year)
             .Include(b => b.Category)
+            .Include(b => b.Wallet)
             .ToListAsync();
 
             return budgets;
+        }
+        public async Task<Budget> GetBudgetById(int id, int walletId, int month, int year)
+        {
+            var budget = await _context.Budgets.AsNoTracking()
+            .Where(b => b.WalletId == walletId && b.Month == month && b.Year == year)
+            .Include(b => b.Category)
+            .Include(b => b.Wallet)
+            .FirstOrDefaultAsync();
+
+            return budget;
         }
         public async Task<BudgetSummary> SummaryBudget(int walletId, int month, int year)
         {
@@ -62,7 +74,7 @@ namespace MochiApi.Services
         {
             var cate = await _context.Categories.Where(c => c.Id == createDto.CategoryId).FirstOrDefaultAsync();
 
-            if (cate == null || cate.Type == Common.Enum.CategoryType.Income)
+            if (cate == null || Utils.PlusCategoryTypes.Contains(cate.Type))
             {
                 throw new ApiException("Invalid category", 400);
             }
@@ -97,7 +109,7 @@ namespace MochiApi.Services
             {
                 var cate = await _context.Categories.Where(c => c.Id == updateDto.CategoryId).FirstOrDefaultAsync();
 
-                if (cate == null || cate.Type == Common.Enum.CategoryType.Income)
+                if (cate == null || Utils.PlusCategoryTypes.Contains(cate.Type))
                 {
                     throw new ApiException("Invalid category", 400);
                 }
@@ -117,16 +129,24 @@ namespace MochiApi.Services
             await _context.SaveChangesAsync();
         }
 
-        public async Task UpdateSpentAmount(int categoryId, int month, int year, int amount, bool saveChanges = false)
+        public async Task UpdateSpentAmount(int categoryId, int month, int year, bool saveChanges = false)
         {
             var budget = await _context.Budgets.Where(b => b.CategoryId == categoryId && b.Month == month && b.Year == year).FirstOrDefaultAsync();
 
             if (budget != null)
             {
-                long beforeSpendAmout = budget.SpentAmount;
-                budget.SpentAmount += amount;
+                var spentInMonth = _context.Transactions.Where(t => t.CategoryId == budget.CategoryId
+                && t.CreatedAt.Month == month && t.CreatedAt.Year == year).Sum(t => t.Amount);
 
-                IEnumerable<Notification>? notisList = null;
+                long beforeSpendAmout = budget.SpentAmount;
+                budget.SpentAmount = spentInMonth;
+
+                
+                //Check if system should notify user
+                int dayCount = DateTime.DaysInMonth(DateTime.Now.Year, DateTime.Now.Month);
+                double dailySpentRecommend = budget.LimitAmount / dayCount;
+                int currentDay = DateTime.Now.Day;
+                List<Notification> notisList = new List<Notification>();
                 if (beforeSpendAmout <= budget.LimitAmount && budget.SpentAmount > budget.LimitAmount)
                 {
                     var memberIds = await _context.WalletMembers
@@ -144,7 +164,26 @@ namespace MochiApi.Services
                         Description = NotiTemplate.GetRemindBudgetExceedLimit(budget.Category?.Name ?? "", month, year),
                     });
 
-                    notisList = await _notiService.CreateListNoti(notisDto, false);
+                    notisList.AddRange(await _notiService.CreateListNoti(notisDto, false));
+                }
+
+                if (beforeSpendAmout <= currentDay * dailySpentRecommend && budget.SpentAmount > currentDay * dailySpentRecommend)
+                {
+                    var memberIds = await _context.WalletMembers
+             .Where(wM => wM.WalletId == budget.WalletId && wM.Status == Common.Enum.MemberStatus.Accepted)
+             .Select(wM => wM.UserId).ToArrayAsync();
+
+                    await _context.Entry(budget).Reference(b => b.Category).LoadAsync();
+                    var notisDto = memberIds.Select(id => new CreateNotificationDto
+                    {
+                        UserId = id,
+                        BudgetId = budget.Id,
+                        WalletId = budget.WalletId,
+                        Type = Common.Enum.NotificationType.BudgetExceed,
+                        Description = NotiTemplate.GetRemindBudgetExceedLimitInDay(budget.Category?.Name ?? ""),
+                    });
+
+                    notisList.AddRange(await _notiService.CreateListNoti(notisDto, false));
                 }
 
                 if (saveChanges)
@@ -212,14 +251,6 @@ namespace MochiApi.Services
             return summary;
         }
 
-        async Task<Budget?> IBudgetService.GetBudget(int id, int walletId, int month, int year)
-        {
-            var budget = await _context.Budgets.AsNoTracking().Where(b => b.Id == id && b.WalletId == walletId && b.Month == month && b.Year == year)
-                 .FirstOrDefaultAsync();
-
-            return budget;
-        }
-
         async Task<IEnumerable<BudgetDetailStatistic>> IBudgetService.StatisticBudget(int id, int walletId, int month, int year)
         {
             var budget = await _context.Budgets.Where(b => b.Id == id && b.WalletId == walletId && b.Month == month && b.Year == year)
@@ -252,6 +283,22 @@ namespace MochiApi.Services
 
 
             return amountEachDay.Select((v, i) => new BudgetDetailStatistic { Date = new DateTime(year, month, i + 1), ExpenseAmount = v }).ToList();
+        }
+
+        public  async Task UpdateSpentAmount(int categoryId, int month, int year)
+        {
+            var budget = await _context.Budgets.Where(b => b.CategoryId == categoryId && b.Month == month && b.Year == year)
+            .FirstOrDefaultAsync();
+
+            if (budget == null)
+            {
+                return;
+            }
+
+            var spentInMonth = _context.Transactions.Where(t => t.CategoryId == budget.CategoryId
+&& t.CreatedAt.Month == month && t.CreatedAt.Year == year).Sum(t => t.Amount);
+
+            budget.SpentAmount = spentInMonth;
         }
     }
 }
