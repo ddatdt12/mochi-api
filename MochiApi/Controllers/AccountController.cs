@@ -13,7 +13,7 @@ using MochiApi.Error;
 namespace MochiApi.Controllers
 {
     [ApiController]
-    [Route("account")]
+    [Route("api/account")]
     public class AccountController : Controller
     {
         public DataContext _context { get; set; }
@@ -24,11 +24,28 @@ namespace MochiApi.Controllers
             _mapper = mapper;
         }
 
-        [HttpGet("invitations")]
-        public async Task<IActionResult> GetInvitations([MinLength(4, ErrorMessage = "At lease 4 characters")] string email)
+        [HttpPut("info")]
+        [Produces(typeof(IEnumerable<InvitationDto>))]
+        public async Task<IActionResult> UpdateInfo([FromBody] UpdateUserDto updateUserDto)
         {
             var userId = HttpContext.Items["UserId"] as int?;
-            var invitations = await _context.Invitations.Where(u => u.UserId == userId).ToListAsync();
+            var user = await _context.Users.Where(u => u.Id == userId).FirstOrDefaultAsync();
+
+            if (user == null) return NotFound();
+            user.Avatar = updateUserDto.Avatar;
+
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+        [HttpGet("invitations")]
+        [Produces(typeof(IEnumerable<InvitationDto>))]
+        public async Task<IActionResult> GetInvitations()
+        {
+            var userId = HttpContext.Items["UserId"] as int?;
+            var invitations = await _context.Invitations
+            .Include(i => i.Sender)
+            .Include(i => i.Wallet)
+            .Where(u => u.UserId == userId).ToListAsync();
 
             var invitationDtos = _mapper.Map<IEnumerable<InvitationDto>>(invitations);
             return Ok(new ApiResponse<IEnumerable<InvitationDto>>(invitationDtos, "Get invitations"));

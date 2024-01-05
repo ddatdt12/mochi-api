@@ -4,6 +4,7 @@ using MochiApi.Attributes;
 using MochiApi.Dtos;
 using MochiApi.DTOs;
 using MochiApi.Error;
+using MochiApi.Helper;
 using MochiApi.Models;
 using MochiApi.Services;
 using System.ComponentModel.DataAnnotations;
@@ -34,7 +35,7 @@ namespace MochiApi.Controllers
         public async Task<IActionResult> GetBudgets(int walletId, [FromQuery] int month, [FromQuery] int year)
         {
             var userId = HttpContext.Items["UserId"] as int?;
-            if (!await _walletService.VerifyIsUserInWallet(walletId, (int)userId))
+            if (!await _walletService.VerifyIsUserInWallet(walletId, (int)userId!))
             {
                 throw new ApiException("Access denied!", 400);
             }
@@ -43,20 +44,38 @@ namespace MochiApi.Controllers
             var budgetDtos = _mapper.Map<IEnumerable<BudgetDto>>(budgets);
             return Ok(new ApiResponse<object>(budgetDtos, "Get budgets successfully!"));
         }
-        [HttpGet("{id}/transactions")]
-        public async Task<IActionResult> GetTransactionsInBudget(int id, int walletId, [FromQuery, Required] int month, [FromQuery, Required] int year)
+
+        [HttpGet("{id}")]
+        [Produces(typeof(ApiResponse<BudgetDto>))]
+        public async Task<IActionResult> GetBudgetById(int id, int walletId, [FromQuery] int month, [FromQuery] int year)
         {
             var userId = HttpContext.Items["UserId"] as int?;
             if (!await _walletService.VerifyIsUserInWallet(walletId, (int)userId!))
             {
                 throw new ApiException("Access denied!", 400);
             }
-            var budget = await _budgetService.GetBudget(id, walletId, month, year);
+            var budget = await _budgetService.GetBudgetById(id, walletId, month, year);
+            if (budget == null)
+            {
+                throw new ApiException("Not found", 400);
+            }
+            var budgetDto = _mapper.Map<BudgetDto>(budget);
+            return Ok(new ApiResponse<object>(budgetDto, "Get budget by id successfully!"));
+        }
+        [HttpGet("{id}/transactions")]
+        public async Task<IActionResult> GetTransactionsInBudget(int id, int walletId, [FromQuery, Required] int month, [FromQuery, Required] int year)
+        {
+            int userId = HttpContext.Items["UserId"]! as int? ?? 0;
+            if (!await _walletService.VerifyIsUserInWallet(walletId, (int)userId!))
+            {
+                throw new ApiException("Access denied!", 400);
+            }
+            var budget = await _budgetService.GetBudgetById(id, walletId, month, year);
             if (budget == null)
             {
                 throw new ApiException("Not found", 404);
             }
-            var transList = await _transService.GetTransactions(walletId,
+            var transList = await _transService.GetTransactions(userId, walletId,
                 filter: new TransactionFilterDto
                 {
                     StartDate = new DateTime(year, month, 1),
@@ -76,7 +95,7 @@ namespace MochiApi.Controllers
 
                 foreach (var transaction in group)
                 {
-                    if (transaction.Category!.Type == Common.Enum.CategoryType.Income)
+                    if (Utils.PlusCategoryTypes.Contains(transaction.Category!.Type))
                     {
                         totalIncome += transaction.Amount;
                         revenue += transaction.Amount;
@@ -114,7 +133,7 @@ namespace MochiApi.Controllers
 
             return Ok(new ApiResponse<object>(budget, "Summary budget in detail successfully!!"));
         }
-        
+
         [HttpGet("{id}/statistic")]
         [Produces(typeof(ApiResponse<IEnumerable<BudgetDetailStatistic>>))]
         public async Task<IActionResult> StatisticBudgetDetail(int id, int walletId, [FromQuery] int month, [FromQuery] int year)

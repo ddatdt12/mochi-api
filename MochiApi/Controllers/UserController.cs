@@ -11,7 +11,7 @@ using MochiApi.DTOs;
 namespace MochiApi.Controllers
 {
     [ApiController]
-    [Route("users")]
+    [Route("api/users")]
     public class UserController : Controller
     {
         public DataContext _context { get; set; }
@@ -22,13 +22,29 @@ namespace MochiApi.Controllers
             _mapper = mapper;
         }
 
-        [HttpGet]
-        public async Task<IActionResult> GetUsers([MinLength(4, ErrorMessage = "At lease 4 characters")] string email)
+        [HttpGet("search")]
+        public async Task<IActionResult> GetUsers([EmailAddress] string email, int? walletId)
         {
-            var users = await _context.Users.Where(u => u.Email.Contains(email)).ToListAsync();
+            var user = await _context.Users.Where(u => u.Email == email).FirstOrDefaultAsync();
+            var userDto = _mapper.Map<BasicUserDto>(user);
 
-            var userDtos = _mapper.Map<IEnumerable<BasicUserDto>>(users);
-            return Ok(new ApiResponse<IEnumerable<BasicUserDto>>(userDtos, "search users"));
+            if (user != null && walletId != null)
+            {
+                var walletMember = await _context.WalletMembers.Where(wM => wM.UserId == user.Id && wM.WalletId == walletId).FirstOrDefaultAsync();
+                if (walletMember != null)
+                {
+                    userDto.WalletMember = new WalletMemberDto
+                    {
+                        UserId = walletMember.UserId,
+                        WalletId = walletMember.WalletId,
+                        JoinAt = walletMember.JoinAt,
+                        Role = walletMember.Role,
+                        Status = walletMember.Status
+                    };
+                }
+            }
+
+            return Ok(new ApiResponse<BasicUserDto>(userDto, "search users by email"));
         }
     }
 }
