@@ -17,11 +17,13 @@ namespace MochiApi.Controllers
     public class WalletCategoryController : Controller
     {
         public ICategoryService _categoryService { get; set; }
+        public IWalletService _walletService { get; set; }
         public IMapper _mapper { get; set; }
-        public WalletCategoryController(ICategoryService category, IMapper mapper)
+        public WalletCategoryController(ICategoryService category, IMapper mapper, IWalletService walletService)
         {
             _categoryService = category;
             _mapper = mapper;
+            _walletService = walletService;
         }
 
         [HttpGet]
@@ -38,6 +40,12 @@ namespace MochiApi.Controllers
         public async Task<IActionResult> CreateCategory(int walletId,[FromBody] CreateCategoryDto createCategoryDto)
         {
             var user = HttpContext.Items["User"] as User;
+
+            if (!await _walletService.VerifyIsUserInWallet(walletId, user!.Id))
+            {
+                throw new ApiException("Access denied!", 400);
+            }
+
             var cate = await _categoryService.CreateCategory(walletId, createCategoryDto);
 
             var cateDto = _mapper.Map<CategoryDto>(cate);
@@ -58,7 +66,7 @@ namespace MochiApi.Controllers
         public async Task<IActionResult> DeleteCategory(int id, int walletId)
         {
             var userId = HttpContext.Items["UserId"] as int?;
-            await _categoryService.DeleteCategory(id, walletId);
+            await _categoryService.DeleteCategory(walletId, id);
             return NoContent();
         }
     }

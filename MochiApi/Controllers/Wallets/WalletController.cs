@@ -10,6 +10,8 @@ using MochiApi.Hubs;
 using MochiApi.Models;
 using MochiApi.Services;
 using Newtonsoft.Json;
+using System.ComponentModel.DataAnnotations;
+using static MochiApi.Common.Enum;
 
 namespace MochiApi.Controllers
 {
@@ -77,15 +79,33 @@ namespace MochiApi.Controllers
             return Ok(new ApiResponse<object>(members, "Get Members of wallet"));
         }
 
-        [HttpDelete("{id}/members/{memberId}")]
+        [HttpPost("{id}/members")]
         [Produces(typeof(NoContentResult))]
-        public async Task<IActionResult> GetMembersOfWallet(int id, int memberId)
+        public async Task<IActionResult> AddMember(int id, [FromBody] List<CreateWalletMemberDto> createDtos)
         {
             var userId = (int)(HttpContext.Items["UserId"] as int?)!;
 
+            await _walletService.AddMembersToWallet(userId, id, createDtos);
+            return NoContent();
+        }
+
+        [HttpPut("{id}/members")]
+        [Produces(typeof(NoContentResult))]
+        public async Task<IActionResult> UpdateMember(int id, [FromBody] List<CreateWalletMemberDto> updates)
+        {
+            var userId = (int)(HttpContext.Items["UserId"] as int?)!;
+            await _walletService.UpdateMembersToWallet(userId, id, updates);
+            return NoContent();
+        }
+        [HttpDelete("{id}/members/{memberId}")]
+        [Produces(typeof(NoContentResult))]
+        public async Task<IActionResult> UpdateMember(int id, int memberId)
+        {
+            var userId = (int)(HttpContext.Items["UserId"] as int?)!;
             await _walletService.DeleteMemberInWallet(userId, id, memberId);
             return NoContent();
         }
 
     }
+
 }

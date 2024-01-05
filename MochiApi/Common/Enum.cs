@@ -8,7 +8,11 @@ namespace MochiApi.Common
         public enum CategoryType
         {
             Income,
-            Expense
+            Expense,
+            Debt,
+            Repayment,
+            Loan,
+            DebtCollection
         }
 
         [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -55,7 +59,8 @@ namespace MochiApi.Common
         {
             New,
             Accepted,
-            Declined
+            Declined,
+            Expired,
         }
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public enum InvitationAction
@@ -70,6 +75,13 @@ namespace MochiApi.Common
             Accepted,
             Declined,
             Pending
+        }
+
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public enum WalletAction
+        {
+            Invite,
+            Remove
         }
     }
 }
